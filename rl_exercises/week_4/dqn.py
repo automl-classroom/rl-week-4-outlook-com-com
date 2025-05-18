@@ -134,8 +134,10 @@ class DQNAgent(AbstractAgent):
         # TODO: implement exponential‐decayin
         # ε = ε_final + (ε_start - ε_final) * exp(-total_steps / ε_decay)
         # Currently, it is constant and returns the starting value ε
+        
+        result = self.epsilon_final + (self.epsilon_start - self.epsilon_final) * np.exp(-self.total_steps / self.epsilon_decay)
 
-        return self.epsilon_start
+        return result
 
     def predict_action(
         self, state: np.ndarray, evaluate: bool = False
@@ -158,21 +160,25 @@ class DQNAgent(AbstractAgent):
         info_out : dict
             Empty dict (compatible with interface).
         """
+        
         if evaluate:
             # TODO: select purely greedy action from Q(s)
             with torch.no_grad():
-                qvals = ...  # noqa: F841
-
-            action = None
+                tensor_state = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
+                qvals = self.q(tensor_state)
+        
+            action = np.argmax(qvals,dim = 1).item()
         else:
             if np.random.rand() < self.epsilon():
                 # TODO: sample random action
-                action = None
+                action = np.random.randint(self.env.action_space.n)
             else:
                 # TODO: select purely greedy action from Q(s)
-                action = None
+                tensor_state = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
+                qvals = self.q(tensor_state) 
+                action = np.argmax(qvals,dim = 1).item() 
 
-        return action
+        return action , {} # empty dict for compatibility
 
     def save(self, path: str) -> None:
         """
