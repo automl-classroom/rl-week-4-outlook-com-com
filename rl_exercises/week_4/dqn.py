@@ -166,8 +166,10 @@ class DQNAgent(AbstractAgent):
             with torch.no_grad():
                 tensor_state = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
                 qvals = self.q(tensor_state)
+                qvals_np = qvals.detach().numpy()
+            action = np.argmax(qvals_np)
         
-            action = np.argmax(qvals,dim = 1).item()
+            action = np.argmax(qvals,axis = 1).item()
         else:
             if np.random.rand() < self.epsilon():
                 # TODO: sample random action
@@ -176,9 +178,9 @@ class DQNAgent(AbstractAgent):
                 # TODO: select purely greedy action from Q(s)
                 tensor_state = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
                 qvals = self.q(tensor_state) 
-                action = np.argmax(qvals,dim = 1).item() 
+                action = np.argmax(qvals.detach().numpy()).item() 
 
-        return action , {} # empty dict for compatibility
+        return action  # empty dict for compatibility
 
     def save(self, path: str) -> None:
         """
@@ -241,7 +243,7 @@ class DQNAgent(AbstractAgent):
         # TODO: compute TD target with frozen network
         with torch.no_grad():
             next_q = self.target_q(s_next)
-            max_next_q = next_q.max(1, keepDim = True)[0]  
+            max_next_q = next_q.max(1)[0]  
             target = r + self.gamma * max_next_q * (1 - mask)  
 
         loss = nn.MSELoss()(pred, target)
