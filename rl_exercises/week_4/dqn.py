@@ -14,7 +14,11 @@ from omegaconf import DictConfig
 from rl_exercises.agent import AbstractAgent
 from rl_exercises.week_4.buffers import ReplayBuffer
 from rl_exercises.week_4.networks import QNetwork
-
+import rliable
+from rliable.library import create_performance_profile
+from rliable.plot_utils import plot_performance_profiles
+import os
+import matplotlib.pyplot as plt
 
 def set_seed(env: gym.Env, seed: int = 0) -> None:
     """
@@ -121,6 +125,7 @@ class DQNAgent(AbstractAgent):
         self.target_update_freq = target_update_freq
 
         self.total_steps = 0  # for ε decay and target sync
+        self.frame_rewards: List[Tuple[int, float]] = []  # for logging
 
     def epsilon(self) -> float:
         """
@@ -304,6 +309,58 @@ class DQNAgent(AbstractAgent):
 
         print("Training complete.")
 
+    def run_multi_seed_experiments(
+        env_name: str,
+        seeds: list,
+        num_frames: int,
+        plot_folder: str = "plots"
+    ):
+        all_rewards = {}
+
+        for seed in seeds:
+            print(f"Running seed {seed}")
+            env = gym.make(env_name)
+            agent = DQNAgent(env, seed=seed)
+            agent.train(num_frames)
+            rewards = np.array([r for _, r in agent.frame_rewards])
+            all_rewards[f"seed_{seed}"] = rewards
+
+        all_rewards_array = np.array(list(all_rewards.values()))
+
+        results = {
+            f"DQN_{env_name}": {
+                seed_name: np.array([np.mean(rewards)]) 
+                for seed_name, rewards in all_rewards.items()
+            }
+        }
+
+        print("Structured Results: ", results)
+
+        print("This is the results here: ", results)
+
+        os.makedirs(plot_folder, exist_ok=True)
+
+        tau_list = np.linspace(0, 3, 50)
+
+        profiles, profile_cis = create_performance_profile(results, tau_list = tau_list)
+
+        plt.figure(figsize=(8,6))
+        plot_performance_profiles(profiles, xlabel="Frames", ylabel="Mean Reward", tau_list=tau_list)
+        plt.title(f"Performance Profiles for DQN on {env_name}")
+        plt.show() 
+        
+
+        # Compute and plot aggregate metrics
+        # agg_metrics = rly_vis.get_interval_estimates(results, method="bootstrap")
+
+        # plt.figure(figsize=(8,6))
+        # rly_vis.plot_interval_estimates(agg_metrics, xlabel="Frames", ylabel="Mean Reward", title="DQN Performance Summary")
+        plt.savefig(os.path.join(plot_folder, "dqn_performance_summary.png"))
+        plt.close()
+
+        print(f"Plots saved to '{plot_folder}' folder.")
+
+
 
 @hydra.main(config_path="../configs/agent/", config_name="dqn", version_base="1.1")
 def main(cfg: DictConfig):
@@ -331,4 +388,6 @@ def main(cfg: DictConfig):
     )
 
 if __name__ == "__main__":
+    seeds = [0, 1, 2, 3, 4]
+    DQNAgent.run_multi_seed_experiments("CartPole-v1", seeds=seeds, num_frames=200)
     main()
