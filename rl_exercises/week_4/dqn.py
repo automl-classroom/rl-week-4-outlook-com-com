@@ -235,11 +235,14 @@ class DQNAgent(AbstractAgent):
         mask = torch.tensor(np.array(dones), dtype=torch.float32)  # noqa: F841
 
         # # TODO: pass batched states through self.q and gather Q(s,a)
-        pred = ...
+        pred = self.q(s).gather(1, a)  # shape (batch, 1)
+         
 
         # TODO: compute TD target with frozen network
         with torch.no_grad():
-            target = ...
+            next_q = self.target_q(s_next)
+            max_next_q = next_q.max(1, keepDim = True)[0]  
+            target = r + self.gamma * max_next_q * (1 - mask)  
 
         loss = nn.MSELoss()(pred, target)
 
@@ -282,7 +285,7 @@ class DQNAgent(AbstractAgent):
             # update if ready
             if len(self.buffer) >= self.batch_size:
                 # TODO: sample a batch from replay buffer
-                batch = ...
+                batch = self.buffer.sample(self.batch_size)
                 _ = self.update_agent(batch)
 
             if done or truncated:
@@ -292,7 +295,7 @@ class DQNAgent(AbstractAgent):
                 # logging
                 if len(recent_rewards) % 10 == 0:
                     # TODO: compute avg over last eval_interval episodes and print
-                    avg = ...
+                    avg = np.mean(recent_rewards[-eval_interval:]) 
                     print(
                         f"Frame {frame}, AvgReward(10): {avg:.2f}, ε={self.epsilon():.3f}"
                     )
@@ -307,9 +310,23 @@ def main(cfg: DictConfig):
     set_seed(env, cfg.seed)
 
     # 3) TODO: instantiate & train the agent
-    agent = ...
-    agent.train(...)
+    agent = DQNAgent(
+        env=env,
+        buffer_capacity=cfg.agent.buffer_capacity,
+        batch_size=cfg.agent.batch_size,
+        lr=cfg.agent.learning_rate,
+        gamma=cfg.agent.gamma,
+        epsilon_start=cfg.agent.epsilon_start,
+        epsilon_final=cfg.agent.epsilon_final,
+        epsilon_decay=cfg.agent.epsilon_decay,
+        target_update_freq=cfg.agent.target_update_freq,
+        seed=cfg.seed,
+    )
 
+    agent.train(
+        num_frames=cfg.train.num_frames,
+        eval_interval=cfg.train.eval_interval
+    )
 
 if __name__ == "__main__":
     main()
